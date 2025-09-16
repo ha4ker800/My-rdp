@@ -10,6 +10,7 @@ jobs:
 
     steps:
       - name: Configure Core RDP Settings
+        shell: pwsh
         run: |
           # Enable Remote Desktop and disable Network Level Authentication (if needed)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
@@ -19,7 +20,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
                              -Name "SecurityLayer" -Value 0 -Force
 
-          # Remove any existing rule with the same name to avoid duplication
+          # Remove any existing firewall rule with the same name to avoid duplication
           netsh advfirewall firewall delete rule name="RDP-Tailscale" || Write-Host "No existing firewall rule to delete"
           
           # Allow incoming connections on port 3389 (consider restricting to Tailscale interface if possible)
@@ -53,7 +54,12 @@ jobs:
             Remove-LocalUser  -Name "RDP"
           }
 
-          New-LocalUser  -Name "RDP" -Password $securePass -AccountNeverExpires -User MayNotChangePassword:$false -PasswordNeverExpires:$true
+          # Create user without invalid parameters
+          New-LocalUser  -Name "RDP" -Password $securePass -AccountNeverExpires
+
+          # Set additional properties
+          Set-LocalUser  -Name "RDP" -PasswordNeverExpires $true
+
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
 
@@ -120,9 +126,7 @@ jobs:
           Write-Host "`n=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: RDP"
-          # Extract password from RDP_CREDS environment variable
-          $creds = $env:RDP_CREDS
-          Write-Host "Password: $creds" 
+          Write-Host "Password: $env:RDP_CREDS"
           Write-Host "==================`n"
           
           # Keep runner active indefinitely (or until manually cancelled)
